@@ -3,56 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Blue Key Video</title>
+  <title>Blue Key Transparent</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      background: #111;
-      height: 100%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-family: Arial, sans-serif;
+      background: transparent; /* Seite selbst */
+      overflow: hidden;
     }
 
-    .stage {
-      position: relative;
-      width: 960px;
-      max-width: 95vw;
-      aspect-ratio: 16 / 9;
-      background: linear-gradient(180deg, #1e3a8a, #0ea5e9, #93c5fd); /* Hintergrund zum Testen */
-      overflow: hidden;
-      border-radius: 12px;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    video {
+      display: none; /* Nur Quelle */
     }
 
     canvas {
-      width: 100%;
-      height: 100%;
       display: block;
-    }
-
-    /* Video unsichtbar, nur als Quelle */
-    video {
-      display: none;
+      width: 100vw;
+      height: 100vh;
+      background: transparent; /* Canvas transparent */
     }
   </style>
 </head>
 <body>
 
-  <div class="stage">
-    <!-- Falls dein Video .mp4 ist -->
-    <video id="sourceVideo" autoplay muted loop playsinline crossorigin="anonymous">
-      <source src="images/wolke_01.mp4" type="video/mp4">
-      <!-- Falls es webm ist, ergänze z. B.:
-      <source src="images/wolke_01.webm" type="video/webm">
-      -->
-      Dein Browser unterstützt kein HTML5-Video.
-    </video>
+  <video id="sourceVideo" autoplay muted loop playsinline>
+    <source src="images/wolke_01.mp4" type="video/mp4">
+  </video>
 
-    <canvas id="canvas"></canvas>
-  </div>
+  <canvas id="canvas"></canvas>
 
   <script>
     const video = document.getElementById("sourceVideo");
@@ -60,19 +38,16 @@
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
     function resizeCanvas() {
-      const stage = canvas.parentElement;
-      const rect = stage.getBoundingClientRect();
-      canvas.width = rect.width;
-      canvas.height = rect.height;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
     }
-
     window.addEventListener("resize", resizeCanvas);
     resizeCanvas();
 
-    // Chroma Key (Blau entfernen)
-    function chromaKey() {
+    function render() {
       if (video.paused || video.ended) return;
 
+      ctx.clearRect(0, 0, canvas.width, canvas.height); // wichtig für Transparenz
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
       const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -83,41 +58,24 @@
         const g = data[i + 1];
         const b = data[i + 2];
 
-        // Blau-Erkennung (anpassbar)
-        // Bedingung: Blau deutlich stärker als Rot/Grün
-        const isBlue =
-          b > 100 &&
-          b > g * 1.2 &&
-          b > r * 1.3;
-
-        if (isBlue) {
-          // Optional: weicher Key statt komplett transparent
-          // const strength = Math.min(255, (b - Math.max(r, g)) * 2);
-          // data[i + 3] = 255 - strength;
-
-          data[i + 3] = 0; // komplett transparent
+        // Blau keyen
+        if (b > 90 && b > g * 1.15 && b > r * 1.2) {
+          data[i + 3] = 0; // transparent
         }
       }
 
       ctx.putImageData(frame, 0, 0);
-      requestAnimationFrame(chromaKey);
+      requestAnimationFrame(render);
     }
 
-    video.addEventListener("loadeddata", () => {
-      video.play().then(() => {
-        requestAnimationFrame(chromaKey);
-      }).catch(err => {
-        console.error("Video konnte nicht abgespielt werden:", err);
-      });
-    });
-
-    // Falls Autoplay blockiert wird (selten bei muted)
-    document.body.addEventListener("click", () => {
-      if (video.paused) {
-        video.play();
-        requestAnimationFrame(chromaKey);
+    video.addEventListener("loadeddata", async () => {
+      try {
+        await video.play();
+        render();
+      } catch (e) {
+        console.error(e);
       }
-    }, { once: true });
+    });
   </script>
 
 </body>
